@@ -90,6 +90,8 @@ public:
     /// periodically every BuildIndexPeriodMs milliseconds; otherwise, the
     /// symbol index will be updated for each indexed file.
     size_t BackgroundIndexRebuildPeriodMs = 0;
+    /// Place to store indexing database file
+    Path IndexDatabaseFile;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;

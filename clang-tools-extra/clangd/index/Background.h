@@ -16,6 +16,7 @@
 #include "index/FileIndex.h"
 #include "index/Index.h"
 #include "index/Serialization.h"
+#include "index/databasestorage/DatabaseStorage.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/SHA1.h"
@@ -71,7 +72,7 @@ public:
       Context BackgroundContext, const FileSystemProvider &,
       const GlobalCompilationDatabase &CDB,
       BackgroundIndexStorage::Factory IndexStorageFactory,
-      size_t BuildIndexPeriodMs = 0,
+      PathRef IndexDatabaseFile, size_t BuildIndexPeriodMs = 0,
       size_t ThreadPoolSize = llvm::heavyweight_hardware_concurrency());
   ~BackgroundIndex(); // Blocks while the current task finishes.
 
@@ -111,6 +112,7 @@ private:
   std::condition_variable IndexCV;
 
   FileSymbols IndexedSymbols;
+  std::unique_ptr<DatabaseStorage> DiskIndex;
   llvm::StringMap<FileDigest> IndexedFileDigests; // Key is absolute file path.
   std::mutex DigestsMu;
 
