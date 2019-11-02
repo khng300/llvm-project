@@ -85,7 +85,7 @@ public:
   Env &operator=(Env &&From) {
     if (&From == this)
       return *this;
-    Env::~Env();
+    this->~Env();
     Handle = From.Handle;
     From.Handle = nullptr;
     return *this;
@@ -131,7 +131,7 @@ public:
   Txn &operator=(Txn &&From) {
     if (&From == this)
       return *this;
-    Txn::~Txn();
+    this->~Txn();
     Handle = From.Handle;
     From.Handle = nullptr;
     return *this;
@@ -283,7 +283,7 @@ public:
   DBI &operator=(DBI &&From) {
     if (&From == this)
       return *this;
-    DBI::~DBI();
+    this->~DBI();
     Handle = From.Handle;
     From.Handle = std::pair<MDB_env *, MDB_dbi>();
     return *this;
@@ -341,7 +341,7 @@ public:
   Cursor &operator=(Cursor &&From) {
     if (&From == this)
       return *this;
-    Cursor::~Cursor();
+    this->~Cursor();
     Handle = From.Handle;
     From.Handle = nullptr;
     return *this;

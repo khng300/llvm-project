@@ -56,7 +56,7 @@ struct RecordIDAllocator final {
 
   // Move assignment
   RecordIDAllocator &operator=(RecordIDAllocator &&A) {
-    RecordIDAllocator::~RecordIDAllocator();
+    this->~RecordIDAllocator();
     DBI = std::move(A.DBI);
     return *this;
   }

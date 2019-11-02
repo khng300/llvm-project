@@ -256,7 +256,7 @@ llvm::Error LMDBIndex::removeSymbolFromStore(lmdb::Txn &Txn, SymbolID ID) {
   if (Err)
     return llvm::make_error<LMDBIndexError>(LMDBIndexError::DB_ERROR);
   return llvm::Error::success();
-};
+}
 
 llvm::Error LMDBIndex::updateSymbolToStore(lmdb::Txn &Txn, Symbol &S) {
   // Generate trigram tokens corresponding to the unqualified name of
@@ -291,7 +291,7 @@ llvm::Error LMDBIndex::updateSymbolToStore(lmdb::Txn &Txn, Symbol &S) {
   if (Err)
     return llvm::make_error<LMDBIndexError>(LMDBIndexError::DB_ERROR);
   return llvm::Error::success();
-};
+}
 
 llvm::Error LMDBIndex::updateFile(llvm::StringRef FilePath,
                                   const IndexFileOut &Shard) {
@@ -479,7 +479,7 @@ llvm::Expected<Symbol> LMDBIndex::getSymbol(lmdb::Txn &Txn, SymbolID ID) {
   if (auto Err = DBISymbolIDToSymbols.get(Txn, ID.raw(), V))
     return llvm::make_error<LMDBIndexError>(LMDBIndexError::NOT_FOUND);
   return container::readSymbol(V);
-};
+}
 
 bool LMDBSymbolIndex::fuzzyFind(
     const FuzzyFindRequest &Req,
