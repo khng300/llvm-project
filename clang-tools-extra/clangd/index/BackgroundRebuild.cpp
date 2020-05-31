@@ -113,12 +113,22 @@ void BackgroundIndexRebuilder::maybeRebuild(const char *Reason,
     }
   }
   if (BuildVersion) {
-    std::unique_ptr<SymbolIndex> NewIndex;
+    std::unique_ptr<SymbolIndex> NewIndex = std::make_unique<MemIndex>();
     {
       vlog("BackgroundIndex: building version {0} {1}", BuildVersion, Reason);
       trace::Span Tracer("RebuildBackgroundIndex");
       SPAN_ATTACH(Tracer, "reason", Reason);
-      NewIndex = Source->buildIndex(IndexType::Heavy, DuplicateHandling::Merge);
+      if (Source) {
+        auto Index = Source->buildIndex();
+        if (Index && *Index)
+          NewIndex = std::move(*Index);
+        else {
+          auto Err = Index.takeError();
+          elog("BackgroundIndex: DbIndex error. Reason: {0}", Err);
+          llvm::consumeError(std::move(Err));
+          return;
+        }
+      }
     }
     {
       std::lock_guard<std::mutex> Lock(Mu);

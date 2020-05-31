@@ -34,6 +34,16 @@ if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
   list(APPEND CLANGD_ATOMIC_LIB "atomic")
 endif()
 
+set(lmdb_DIRS third_party/lmdb/libraries/liblmdb)
+add_library(lmdb STATIC ${lmdb_DIRS}/mdb.c ${lmdb_DIRS}/midl.c)
+target_compile_definitions(lmdb PRIVATE MDB_USE_POSIX_SEM=1)
+if(MSVC)
+  target_compile_options(lmdb PRIVATE "/w")
+else(MSVC)
+  target_compile_options(lmdb PRIVATE "-w")
+endif()
+include_directories(${lmdb_DIRS})
+
 add_clang_library(clangDaemon
   AST.cpp
   Cancellation.cpp
@@ -106,6 +116,13 @@ add_clang_library(clangDaemon
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
 
+  index/dbindex/Container.cpp
+  index/dbindex/LmdbCxx.cpp
+  index/dbindex/DbIndex.cpp
+  index/dbindex/Iterator.cpp
+  index/dbindex/Trigram.cpp
+  index/dbindex/xxhash.cpp
+
   refactor/Rename.cpp
   refactor/Tweak.cpp
 
@@ -129,6 +146,7 @@ add_clang_library(clangDaemon
   ${LLVM_PTHREAD_LIB}
   ${CLANGD_ATOMIC_LIB}
   ${ALL_CLANG_TIDY_CHECKS}
+  lmdb
   )
 
 add_subdirectory(refactor/tweaks)
@@ -139,6 +157,7 @@ endif()
 add_subdirectory(tool)
 add_subdirectory(indexer)
 add_subdirectory(index/dex/dexp)
+add_subdirectory(index/dbindex/dbindexp)
 
 if (LLVM_INCLUDE_BENCHMARKS)
   add_subdirectory(benchmarks)

@@ -27,6 +27,7 @@
 #include "index/Relation.h"
 #include "index/Serialization.h"
 #include "index/SymbolCollector.h"
+#include "index/dbindex/DbIndex.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Driver/Types.h"
@@ -137,10 +138,11 @@ bool shardIsStale(const LoadedShard &LS, llvm::vfs::FileSystem *FS) {
 BackgroundIndex::BackgroundIndex(
     Context BackgroundContext, const FileSystemProvider &FSProvider,
     const GlobalCompilationDatabase &CDB,
+    std::shared_ptr<dbindex::LMDBIndex> Index,
     BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize)
-    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider),
-      CDB(CDB), BackgroundContext(std::move(BackgroundContext)),
-      Rebuilder(this, &IndexedSymbols, ThreadPoolSize),
+    : SwapIndex(std::make_unique<MemIndex>()), FSProvider(FSProvider), CDB(CDB),
+      BackgroundContext(std::move(BackgroundContext)), IndexedSymbols(Index),
+      Rebuilder(this, IndexedSymbols.get(), ThreadPoolSize),
       IndexStorageFactory(std::move(IndexStorageFactory)),
       CommandsChanged(
           CDB.watch([&](const std::vector<std::string> &ChangedFiles) {
@@ -326,12 +328,6 @@ void BackgroundIndex::update(
         continue;
       SV.Digest = Hash;
       SV.HadErrors = HadErrors;
-
-      // This can override a newer version that is added in another thread, if
-      // this thread sees the older version but finishes later. This should be
-      // rare in practice.
-      IndexedSymbols.update(Path, std::move(SS), std::move(RS), std::move(RelS),
-                            Path == MainFile);
     }
   }
 }
@@ -469,9 +465,6 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
       SV.Digest = LS.Digest;
       SV.HadErrors = LS.HadErrors;
       ++LoadedShards;
-
-      IndexedSymbols.update(LS.AbsolutePath, std::move(SS), std::move(RS),
-                            std::move(RelS), LS.CountReferences);
     }
   }
   Rebuilder.loadedShard(LoadedShards);
