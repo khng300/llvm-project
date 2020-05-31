@@ -16,6 +16,7 @@
 
 #include "index/FileIndex.h"
 #include "index/Index.h"
+#include "index/dbindex/DbIndex.h"
 #include "llvm/Support/Threading.h"
 #include <cstddef>
 
@@ -47,7 +48,7 @@ namespace clangd {
 // This class is exposed in the header so it can be tested.
 class BackgroundIndexRebuilder {
 public:
-  BackgroundIndexRebuilder(SwapIndex *Target, FileSymbols *Source,
+  BackgroundIndexRebuilder(SwapIndex *Target, std::shared_ptr<dbindex::LMDBIndex> Source,
                            unsigned Threads)
       : TUsBeforeFirstBuild(Threads), Target(Target), Source(Source) {}
 
@@ -93,7 +94,7 @@ private:
   unsigned LoadedShards; // In the current loading session.
 
   SwapIndex *Target;
-  FileSymbols *Source;
+  std::shared_ptr<dbindex::LMDBIndex> Source;
 };
 
 } // namespace clangd

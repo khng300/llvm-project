@@ -28,6 +28,7 @@
 #include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
+#include "index/dbindex/DbIndex.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Driver/Types.h"
@@ -93,13 +94,14 @@ bool shardIsStale(const LoadedShard &LS, llvm::vfs::FileSystem *FS) {
 BackgroundIndex::BackgroundIndex(
     Context BackgroundContext, const ThreadsafeFS &TFS,
     const GlobalCompilationDatabase &CDB,
+    std::shared_ptr<dbindex::LMDBIndex> Index,
     BackgroundIndexStorage::Factory IndexStorageFactory, size_t ThreadPoolSize,
     std::function<void(BackgroundQueue::Stats)> OnProgress,
     std::function<Context(PathRef)> ContextProvider)
     : SwapIndex(std::make_unique<MemIndex>()), TFS(TFS), CDB(CDB),
       BackgroundContext(std::move(BackgroundContext)),
-      ContextProvider(std::move(ContextProvider)),
-      Rebuilder(this, &IndexedSymbols, ThreadPoolSize),
+      ContextProvider(std::move(ContextProvider)), IndexedSymbols(Index),
+      Rebuilder(this, IndexedSymbols, ThreadPoolSize),
       IndexStorageFactory(std::move(IndexStorageFactory)),
       Queue(std::move(OnProgress)),
       CommandsChanged(
@@ -108,6 +110,13 @@ BackgroundIndex::BackgroundIndex(
           })) {
   assert(ThreadPoolSize > 0 && "Thread pool size can't be zero.");
   assert(this->IndexStorageFactory && "Storage factory can not be null!");
+  if (Index) {
+    auto E = Index->buildIndex();
+    if (E && *E)
+      this->reset(std::move(*E));
+    else
+      llvm::consumeError(E.takeError());
+  }
   for (unsigned I = 0; I < ThreadPoolSize; ++I) {
     ThreadPool.runAsync("background-worker-" + llvm::Twine(I + 1), [this] {
       WithContext Ctx(this->BackgroundContext.clone());
@@ -236,15 +245,6 @@ void BackgroundIndex::update(
         continue;
       SV.Digest = Hash;
       SV.HadErrors = HadErrors;
-
-      // This can override a newer version that is added in another thread, if
-      // this thread sees the older version but finishes later. This should be
-      // rare in practice.
-      IndexedSymbols.update(
-          Path, std::make_unique<SymbolSlab>(std::move(*IF->Symbols)),
-          std::make_unique<RefSlab>(std::move(*IF->Refs)),
-          std::make_unique<RelationSlab>(std::move(*IF->Relations)),
-          Path == MainFile);
     }
   }
 }
@@ -389,9 +389,6 @@ BackgroundIndex::loadProject(std::vector<std::string> MainFiles) {
       SV.Digest = LS.Digest;
       SV.HadErrors = LS.HadErrors;
       ++LoadedShards;
-
-      IndexedSymbols.update(LS.AbsolutePath, std::move(SS), std::move(RS),
-                            std::move(RelS), LS.CountReferences);
     }
   }
   Rebuilder.loadedShard(LoadedShards);

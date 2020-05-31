@@ -28,6 +28,16 @@ set(LLVM_LINK_COMPONENTS
   Option
   )
 
+set(lmdb_DIRS third_party/lmdb/libraries/liblmdb)
+add_library(lmdb STATIC ${lmdb_DIRS}/mdb.c ${lmdb_DIRS}/midl.c)
+target_compile_definitions(lmdb PRIVATE MDB_USE_POSIX_SEM=1)
+if(MSVC)
+  target_compile_options(lmdb PRIVATE "/w")
+else(MSVC)
+  target_compile_options(lmdb PRIVATE "-w")
+endif()
+include_directories(${lmdb_DIRS})
+
 add_clang_library(clangDaemon
   AST.cpp
   ClangdLSPServer.cpp
@@ -97,6 +107,13 @@ add_clang_library(clangDaemon
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
 
+  index/dbindex/Container.cpp
+  index/dbindex/LmdbCxx.cpp
+  index/dbindex/DbIndex.cpp
+  index/dbindex/Iterator.cpp
+  index/dbindex/Trigram.cpp
+  index/dbindex/xxhash.cpp
+
   refactor/Rename.cpp
   refactor/Tweak.cpp
 
@@ -127,6 +144,7 @@ clang_target_link_libraries(clangDaemon
   clangToolingInclusions
   clangToolingRefactoring
   clangToolingSyntax
+  lmdb
   )
 
 add_subdirectory(refactor/tweaks)
@@ -158,3 +176,4 @@ if (CLANGD_ENABLE_REMOTE)
 endif()
 add_subdirectory(index/remote)
 add_subdirectory(index/dex/dexp)
+add_subdirectory(index/dbindex/dbindexp)

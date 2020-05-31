@@ -1,0 +1,3 @@
+[submodule "clang-tools-extra/clangd/third_party/lmdb"]
+	path = clang-tools-extra/clangd/third_party/lmdb
+	url = https://github.com/LMDB/lmdb

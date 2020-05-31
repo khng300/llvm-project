@@ -19,6 +19,7 @@
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
+#include "index/dbindex/DbIndex.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Threading.h"
@@ -61,6 +62,11 @@ public:
   // of a file, or user cache directory if none was found, e.g. stdlib headers.
   static Factory createDiskBackedStorageFactory(
       std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo);
+
+  static Factory createDbIndexBackedStorageFactory(
+      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo,
+      llvm::StringRef WorkspaceRoot,
+      std::shared_ptr<dbindex::LMDBIndex> &Index);
 };
 
 // A priority queue of tasks which can be run on (external) worker threads.
@@ -134,6 +140,7 @@ public:
   BackgroundIndex(
       Context BackgroundContext, const ThreadsafeFS &,
       const GlobalCompilationDatabase &CDB,
+      std::shared_ptr<dbindex::LMDBIndex> Index,
       BackgroundIndexStorage::Factory IndexStorageFactory,
       // Arbitrary value to ensure some concurrency in tests.
       // In production an explicit value is passed.
@@ -188,7 +195,7 @@ private:
 
   llvm::Error index(tooling::CompileCommand);
 
-  FileSymbols IndexedSymbols;
+  std::shared_ptr<dbindex::LMDBIndex> IndexedSymbols;
   BackgroundIndexRebuilder Rebuilder;
   llvm::StringMap<ShardVersion> ShardVersions; // Key is absolute file path.
   std::mutex ShardVersionsMu;

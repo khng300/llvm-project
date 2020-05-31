@@ -24,6 +24,7 @@
 #include "index/CanonicalIncludes.h"
 #include "index/FileIndex.h"
 #include "index/Merge.h"
+#include "index/dbindex/DbIndex.h"
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
 #include "support/Logger.h"
@@ -40,6 +41,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -171,10 +173,14 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
   if (Opts.StaticIndex)
     AddIndex(Opts.StaticIndex);
   if (Opts.BackgroundIndex) {
+    std::shared_ptr<dbindex::LMDBIndex> Index;
+    BackgroundIndexStorage::Factory Factory =
+        BackgroundIndexStorage::createDbIndexBackedStorageFactory(
+            [&CDB](llvm::StringRef File) { return CDB.getProjectInfo(File); },
+            WorkspaceRoot ? llvm::StringRef(*WorkspaceRoot) : llvm::StringRef(),
+            Index);
     BackgroundIdx = std::make_unique<BackgroundIndex>(
-        Context::current().clone(), TFS, CDB,
-        BackgroundIndexStorage::createDiskBackedStorageFactory(
-            [&CDB](llvm::StringRef File) { return CDB.getProjectInfo(File); }),
+        Context::current().clone(), TFS, CDB, Index, std::move(Factory),
         std::max(Opts.AsyncThreadsCount, 1u),
         [Callbacks](BackgroundQueue::Stats S) {
           if (Callbacks)

@@ -10,6 +10,7 @@
 #include "index/Background.h"
 #include "support/Logger.h"
 #include "support/Path.h"
+#include "index/dbindex/DbIndex.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -21,6 +22,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include <functional>
 
 namespace clang {
@@ -94,6 +96,37 @@ public:
   }
 };
 
+// Persist shards in DbIndex
+class DbIndexBackedIndexStorage : public BackgroundIndexStorage {
+public:
+  std::shared_ptr<dbindex::LMDBIndex> DB;
+
+public:
+  // Sets DiskShardRoot to (Directory + ".clangd/index/") which is the base
+  // directory for all shard files.
+  DbIndexBackedIndexStorage(std::shared_ptr<dbindex::LMDBIndex> DB) : DB(DB) {}
+
+  std::unique_ptr<IndexFileIn>
+  loadShard(llvm::StringRef ShardIdentifier) const override {
+    if (!DB)
+      return nullptr;
+    auto I = DB->get(ShardIdentifier);
+    if (!I) {
+      elog("Error while reading shard {0}: {1}", ShardIdentifier,
+           I.takeError());
+      return nullptr;
+    }
+    return std::make_unique<IndexFileIn>(std::move(*I));
+  }
+
+  llvm::Error storeShard(llvm::StringRef ShardIdentifier,
+                         IndexFileOut Shard) const override {
+    if (!DB)
+      return llvm::Error::success();
+    return DB->update(ShardIdentifier, Shard);
+  }
+};
+
 // Creates and owns IndexStorages for multiple CDBs.
 // When a CDB root is found, shards are stored in $ROOT/.cache/clangd/index/.
 // When no root is found, the fallback path is ~/.cache/clangd/index/.
@@ -140,12 +173,78 @@ private:
   std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo;
 };
 
+// Creates and owns IndexStorages for multiple CDBs.
+class DbIndexBackedIndexStorageManager {
+public:
+  DbIndexBackedIndexStorageManager(
+      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo,
+      llvm::StringRef WorkspaceRoot, std::shared_ptr<dbindex::LMDBIndex> &Index)
+      : IndexStorage(std::make_unique<NullStorage>()),
+        GetProjectInfo(std::move(GetProjectInfo)) {
+    llvm::SmallString<128> Dir, WorkDir;
+    if (WorkspaceRoot.size())
+      WorkDir = WorkspaceRoot;
+    else
+      llvm::sys::fs::current_path(WorkDir);
+
+    if (auto EnvPrefix = llvm::sys::Process::GetEnv("CLANGD_INDEXDB_PREFIX")) {
+      Dir = *EnvPrefix;
+    } else if (llvm::sys::Process::GetEnv("CLANGD_INDEXDB_PREFIX_HOME")) {
+      if (llvm::sys::path::home_directory(Dir))
+        llvm::sys::path::append(Dir, ".clangd");
+    }
+
+    if (Dir.size()) {
+      llvm::sys::path::append(Dir, WorkDir);
+    } else {
+      Dir = WorkDir;
+      llvm::sys::path::append(Dir, ".clangd", "IndexDB");
+    }
+
+    DbIndexRoot = Dir.str().str();
+
+    std::error_code EC = llvm::sys::fs::create_directories(DbIndexRoot, true);
+    if (EC) {
+      elog("Failed to create directory {0} for IndexDB storage: {1}",
+           DbIndexRoot, EC.message());
+      return;
+    }
+    auto E = dbindex::LMDBIndex::open(DbIndexRoot);
+    if (!E) {
+      elog("Error while opening database {0}: {1}", DbIndexRoot, E.takeError());
+      return;
+    }
+    DB = std::move(*E);
+    IndexStorage = std::make_unique<DbIndexBackedIndexStorage>(DB);
+    Index = DB;
+  }
+
+  // Creates or fetches to storage from cache for the specified project.
+  BackgroundIndexStorage *operator()(PathRef File) {
+    return IndexStorage.get();
+  }
+
+private:
+  std::shared_ptr<dbindex::LMDBIndex> DB;
+  std::string DbIndexRoot;
+  std::unique_ptr<BackgroundIndexStorage> IndexStorage;
+  std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo;
+};
+
 } // namespace
 
 BackgroundIndexStorage::Factory
 BackgroundIndexStorage::createDiskBackedStorageFactory(
     std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo) {
   return DiskBackedIndexStorageManager(std::move(GetProjectInfo));
+}
+
+BackgroundIndexStorage::Factory
+BackgroundIndexStorage::createDbIndexBackedStorageFactory(
+    std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo,
+    llvm::StringRef WorkspaceRoot, std::shared_ptr<dbindex::LMDBIndex> &Index) {
+  return DbIndexBackedIndexStorageManager(std::move(GetProjectInfo),
+                                          WorkspaceRoot, Index);
 }
 
 } // namespace clangd
