@@ -278,6 +278,9 @@ public:
   /// Called when an event occurs for a watched file in the workspace.
   void onFileEvent(const DidChangeWatchedFilesParams &Params);
 
+  /// Called after \p File is saved by the client.
+  void onSave(PathRef File);
+
   /// Get symbol info for given position.
   /// Clangd extension - not part of official LSP.
   void symbolInfo(PathRef File, Position Pos,
