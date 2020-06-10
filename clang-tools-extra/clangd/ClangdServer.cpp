@@ -560,6 +560,12 @@ void ClangdServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   // invalidating other caches.
 }
 
+void ClangdServer::onSave(PathRef File) {
+  if (!BackgroundIdx)
+    return;
+  BackgroundIdx->enqueue({File});
+}
+
 void ClangdServer::workspaceSymbols(
     llvm::StringRef Query, int Limit,
     Callback<std::vector<SymbolInformation>> CB) {

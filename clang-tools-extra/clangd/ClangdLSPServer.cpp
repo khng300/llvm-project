@@ -806,6 +806,12 @@ void ClangdLSPServer::onDocumentDidClose(
   publishDiagnostics(URIForFile::canonicalize(File, /*TUPath=*/File), {});
 }
 
+void ClangdLSPServer::onDocumentDidSave(
+    const DidSaveTextDocumentParams &Params) {
+  PathRef File = Params.textDocument.uri.file();
+  Server->onSave(File);
+}
+
 void ClangdLSPServer::onDocumentOnTypeFormatting(
     const DocumentOnTypeFormattingParams &Params,
     Callback<std::vector<TextEdit>> Reply) {
@@ -1260,6 +1266,7 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/didOpen", &ClangdLSPServer::onDocumentDidOpen);
   MsgHandler->bind("textDocument/didClose", &ClangdLSPServer::onDocumentDidClose);
   MsgHandler->bind("textDocument/didChange", &ClangdLSPServer::onDocumentDidChange);
+  MsgHandler->bind("textDocument/didSave", &ClangdLSPServer::onDocumentDidSave);
   MsgHandler->bind("workspace/didChangeWatchedFiles", &ClangdLSPServer::onFileEvent);
   MsgHandler->bind("workspace/didChangeConfiguration", &ClangdLSPServer::onChangeConfiguration);
   MsgHandler->bind("textDocument/symbolInfo", &ClangdLSPServer::onSymbolInfo);

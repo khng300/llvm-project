@@ -69,6 +69,7 @@ private:
   void onDocumentDidOpen(const DidOpenTextDocumentParams &);
   void onDocumentDidChange(const DidChangeTextDocumentParams &);
   void onDocumentDidClose(const DidCloseTextDocumentParams &);
+  void onDocumentDidSave(const DidSaveTextDocumentParams &);
   void onDocumentOnTypeFormatting(const DocumentOnTypeFormattingParams &,
                                   Callback<std::vector<TextEdit>>);
   void onDocumentRangeFormatting(const DocumentRangeFormattingParams &,
