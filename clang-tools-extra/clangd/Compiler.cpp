@@ -65,6 +65,15 @@ buildCompilerInvocation(const ParseInputs &Inputs,
   CI->getFrontendOpts().DisableFree = false;
   CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   CI->getLangOpts()->RetainCommentsFromSystemHeaders = true;
+
+  // Disable any pch generation/usage operations. Since serialized preamble
+  // format is unstable, using an incompatible one might result in unexpected
+  // behaviours, including crashes.
+  CI->getPreprocessorOpts().ImplicitPCHInclude.clear();
+  CI->getPreprocessorOpts().PrecompiledPreambleBytes = {0, false};
+  CI->getPreprocessorOpts().PCHThroughHeader.clear();
+  CI->getPreprocessorOpts().PCHWithHdrStop = false;
+  CI->getPreprocessorOpts().PCHWithHdrStopCreate = false;
   return CI;
 }
 
