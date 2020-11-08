@@ -150,6 +150,13 @@ BackgroundIndex::BackgroundIndex(
           })) {
   assert(ThreadPoolSize > 0 && "Thread pool size can't be zero.");
   assert(this->IndexStorageFactory && "Storage factory can not be null!");
+  if (Index) {
+    auto E = Index->buildIndex();
+    if (E)
+      this->reset(std::move(*E));
+    else
+      llvm::consumeError(E.takeError());
+  }
   for (unsigned I = 0; I < ThreadPoolSize; ++I) {
     ThreadPool.runAsync("background-worker-" + llvm::Twine(I + 1), [this] {
       WithContext Ctx(this->BackgroundContext.clone());
