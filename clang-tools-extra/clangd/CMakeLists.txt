@@ -4,6 +4,9 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(support)
 
+# db indexing support
+add_subdirectory(index/db)
+
 # Configure the Features.inc file.
 if (NOT DEFINED CLANGD_BUILD_XPC)
   if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -142,9 +145,25 @@ add_clang_library(clangDaemon
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
 
+  index/db/Background.cpp
+  index/db/BackgroundIndexLoader.cpp
+  index/db/BackgroundQueue.cpp
+  index/db/BackgroundRebuild.cpp
+  index/db/DocumentStore.cpp
+  index/db/IndexDB.cpp
+  index/db/LMDBWrapper.cpp
+  index/db/Marshaller.cpp
+  index/db/Merge.cpp
+  index/db/SymbolIndex.cpp
+  index/db/Iterator.cpp
+  index/db/Trigram.cpp
+
   refactor/InsertionPoint.cpp
   refactor/Rename.cpp
   refactor/Tweak.cpp
+
+  LINK_LIBS
+  clangdLMDBSchema
 
   DEPENDS
   omp_gen

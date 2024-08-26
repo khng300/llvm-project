@@ -21,6 +21,7 @@
 #include "TUScheduler.h"
 #include "XRefs.h"
 #include "index/Background.h"
+#include "index/db/Background.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
 #include "refactor/Rename.h"
@@ -468,7 +469,7 @@ private:
   // If present, an index of symbols in open files. Read via *Index.
   std::unique_ptr<FileIndex> DynamicIdx;
   // If present, the new "auto-index" maintained in background threads.
-  std::unique_ptr<BackgroundIndex> BackgroundIdx;
+  std::unique_ptr<LMDBBackground::BackgroundIndex> BackgroundIdx;
   // Storage for merged views of the various indexes.
   std::vector<std::unique_ptr<SymbolIndex>> MergedIdx;
 
