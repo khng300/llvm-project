@@ -418,7 +418,8 @@ LMDBInstance::LMDBInstance(llvm::StringRef Path) {
       Count += I->databaseCount();
     return Count;
   }());
-  Env.open(Path.data(), MDB_NOTLS | MDB_NOMETASYNC | MDB_WRITEMAP);
+  Env.open(Path.data(),
+           MDB_NOTLS | MDB_NOMETASYNC | MDB_WRITEMAP | MDB_WRITEMAP_FSYNC);
 
   auto TxOrErr = lmdb::Txn::begin(Env);
   if (!TxOrErr)
