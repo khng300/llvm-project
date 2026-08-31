@@ -1,0 +1,8 @@
+[submodule "clang-tools-extra/clangd/index/lmdb-index/schema/cista"]
+	path = clang-tools-extra/clangd/index/lmdb-index/schema/cista
+	url = https://github.com/felixguendling/cista
+	branch = master
+[submodule "clang-tools-extra/clangd/index/lmdb-index/schema/lmdb"]
+	path = clang-tools-extra/clangd/index/lmdb-index/schema/lmdb
+	url = https://github.com/khng300/lmdb.git
+	branch = mdb.master3
