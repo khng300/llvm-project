@@ -1,0 +1,161 @@
+//===--- Token.h - Symbol Search primitive ----------------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Token objects represent a characteristic of a symbol, which can be used to
+/// perform efficient search. Tokens are keys for inverted index which are
+/// mapped to the corresponding posting lists.
+///
+/// The symbol std::cout might have the tokens:
+/// * Scope "std::"
+/// * Trigram "cou"
+/// * Trigram "out"
+/// * Type "std::ostream"
+///
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_LMDB_INDEX_TOKEN_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_LMDB_INDEX_TOKEN_H
+
+#include "index/Symbol.h"
+#include "llvm/Support/BinaryByteStream.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/xxhash.h"
+#include <string>
+#include <vector>
+
+namespace clang {
+namespace clangd {
+namespace lmdb_index {
+
+namespace cl {
+struct Token;
+struct Marshaller;
+} // namespace cl
+
+/// A Token represents an attribute of a symbol, such as a particular trigram
+/// present in the name (used for fuzzy search).
+///
+/// Tokens can be used to perform more sophisticated search queries by
+/// constructing complex iterator trees.
+class Token {
+public:
+  /// Kind specifies Token type which defines semantics for the internal
+  /// representation. Each Kind has different representation stored in Data
+  /// field.
+  // FIXME(kbobyrev): Storing Data hash would be more efficient than storing raw
+  // strings. For example, PathURI store URIs of each directory and its parents,
+  // which induces a lot of overhead because these paths tend to be long and
+  // each parent directory is a prefix.
+  enum class Kind {
+    /// Represents trigram used for fuzzy search of unqualified symbol names.
+    ///
+    /// Data contains 3 bytes with trigram contents.
+    Trigram,
+    /// Scope primitives, e.g. "symbol belongs to namespace foo::bar".
+    ///
+    /// Data stroes full scope name, e.g. "foo::bar::baz::" or "" (for global
+    /// scope).
+    Scope,
+    /// Path Proximity URI to symbol declaration.
+    ///
+    /// Data stores path URI of symbol declaration file or its parent.
+    ///
+    /// Example: "file:///path/to/clang-tools-extra/clangd/index/SymbolIndex.h"
+    /// and some amount of its parents.
+    ProximityURI,
+    /// Type of symbol (see `Symbol::Type`).
+    Type,
+    /// Internal Token type for invalid/special tokens, e.g. empty tokens for
+    /// llvm::DenseMap.
+    Sentinel,
+  };
+
+  Token(Kind TokenKind, llvm::StringRef Data)
+      : Data(Data), TokenKind(TokenKind) {}
+
+  bool operator==(const Token &Other) const {
+    return TokenKind == Other.TokenKind && Data == Other.Data;
+  }
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Token &T) {
+    switch (T.TokenKind) {
+    case Kind::Trigram:
+      OS << "T=";
+      break;
+    case Kind::Scope:
+      OS << "S=";
+      break;
+    case Kind::ProximityURI:
+      OS << "U=";
+      break;
+    case Kind::Type:
+      OS << "Ty=";
+      break;
+    case Kind::Sentinel:
+      OS << "?=";
+      break;
+    }
+    return OS << T.Data;
+  }
+
+  uint64_t getXxh3() const {
+    std::string Buf(1, static_cast<char>(TokenKind));
+    Buf += Data;
+    return llvm::xxh3_64bits(Buf);
+  }
+
+  /// Representation which is unique among Token with the same Kind.
+  std::string Data;
+  Kind TokenKind;
+
+private:
+  friend struct cl::Token;
+  friend struct cl::Marshaller;
+  friend struct Serializer;
+
+  friend llvm::hash_code hash_value(const Token &Token) {
+    return llvm::hash_combine(static_cast<int>(Token.TokenKind), Token.Data);
+  }
+};
+
+// Mark symbols which are can be used for code completion.
+extern const Token RestrictedForCodeCompletion;
+
+std::vector<Token> buildTokens(const Symbol &Sym);
+std::vector<std::string> generateProximityURIs(llvm::StringRef URIPath);
+
+} // namespace lmdb_index
+} // namespace clangd
+} // namespace clang
+
+namespace llvm {
+
+// Support Tokens as DenseMap keys.
+template <> struct DenseMapInfo<clang::clangd::lmdb_index::Token> {
+  static inline clang::clangd::lmdb_index::Token getEmptyKey() {
+    return {clang::clangd::lmdb_index::Token::Kind::Sentinel, "EmptyKey"};
+  }
+
+  static inline clang::clangd::lmdb_index::Token getTombstoneKey() {
+    return {clang::clangd::lmdb_index::Token::Kind::Sentinel, "TombstoneKey"};
+  }
+
+  static unsigned getHashValue(const clang::clangd::lmdb_index::Token &Tag) {
+    return hash_value(Tag);
+  }
+
+  static bool isEqual(const clang::clangd::lmdb_index::Token &LHS,
+                      const clang::clangd::lmdb_index::Token &RHS) {
+    return LHS == RHS;
+  }
+};
+
+} // namespace llvm
+
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_LMDB_INDEX_TOKEN_H
